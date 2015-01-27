@@ -35,6 +35,8 @@ Concat.prototype.cleanup = function(){
 Concat.prototype.write = function (readTree, destDir) {
   var self = this
     return readTree(this.inputTree).then(function (srcDir) {
+      helpers.copyRecursivelySync(srcDir, destDir)
+
       function rewriteFile(filePath, stat) {
         var fileContents = fs.readFileSync(srcDir + '/' + filePath, { encoding: 'utf8' })
         var rewrittenFileContents = rewriteString(fileContents, srcDir)

@@ -58,6 +58,19 @@ describe('broccoli-pipeline', function(){
       })
     })
 
+    it('copies other files', function() {
+      var sourcePath = 'tests/fixtures/input'
+        var tree = pipeline(sourcePath, {
+          htmlFiles: ['index.html'],
+        })
+
+      builder = new broccoli.Builder(tree);
+      return builder.build().then(function(results) {
+        var dir = results.directory;
+        expect(readFile(dir + '/other.js')).to.eql(readFile('tests/fixtures/input/other.js'))
+      })
+    })
+
     it('ignores tags outside of build blocks', function() {
       var sourcePath = 'tests/fixtures/input'
         var tree = pipeline(sourcePath, {
