@@ -18,12 +18,14 @@
     "broccoli-writer": "^0.1.1",
     "broccoli-kitchen-sink-helpers": "^0.2.4",
     "js-string-escape": "~1.0.0",
+    "htmlparser2": "^3.8.2",
+    "dom-serializer": "0.0.1",
     "glob": "^4.3.1"
   },
   "devDependencies": {
-    "mocha": "~1.21.3",
     "broccoli": "~0.12.3",
-    "expect.js": "~0.3.1"
+    "expect.js": "~0.3.1",
+    "mocha": "~1.21.3"
   },
   "keywords": [
     "assets",

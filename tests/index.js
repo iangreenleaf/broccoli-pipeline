@@ -45,7 +45,7 @@ describe('broccoli-pipeline', function(){
   })
 
   describe('development mode', function() {
-    it('rewrites html files with all files', function(){
+    it('rewrites html files with all files', function() {
       var sourcePath = 'tests/fixtures/input'
         var tree = pipeline(sourcePath, {
           htmlFiles: ['index.html'],
@@ -54,8 +54,20 @@ describe('broccoli-pipeline', function(){
       builder = new broccoli.Builder(tree);
       return builder.build().then(function(results) {
         var dir = results.directory;
-        console.log(process.cwd());
         expect(readFile(dir + '/index.html')).to.eql(readFile('tests/fixtures/output/index-dev.html'))
+      })
+    })
+
+    it('ignores tags outside of build blocks', function() {
+      var sourcePath = 'tests/fixtures/input'
+        var tree = pipeline(sourcePath, {
+          htmlFiles: ['index-no-blocks.html'],
+        })
+
+      builder = new broccoli.Builder(tree);
+      return builder.build().then(function(results) {
+        var dir = results.directory;
+        expect(readFile(dir + '/index-no-blocks.html')).to.eql(readFile('tests/fixtures/input/index-no-blocks.html'))
       })
     })
   })
