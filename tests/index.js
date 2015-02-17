@@ -84,4 +84,36 @@ describe('broccoli-pipeline', function(){
       })
     })
   })
+
+  describe('production mode', function() {
+    it('rewrites html files with bundled files', function() {
+      var sourcePath = 'tests/fixtures/input'
+        var tree = pipeline(sourcePath, {
+          htmlFiles: ['index.html'],
+          bundle: true,
+        })
+
+      builder = new broccoli.Builder(tree);
+      return builder.build().then(function(results) {
+        var dir = results.directory;
+        expect(readFile(dir + '/index.html')).to.eql(readFile('tests/fixtures/output/index-prod.html'))
+      })
+    })
+
+    it('concatenates bundled files', function() {
+      var sourcePath = 'tests/fixtures/input'
+        var tree = pipeline(sourcePath, {
+          htmlFiles: ['index.html'],
+          bundle: true,
+        })
+
+      builder = new broccoli.Builder(tree);
+      return builder.build().then(function(results) {
+        var dir = results.directory;
+        expect(readFile(dir + '/vendor.js')).to.eql(readFile('tests/fixtures/output/vendor.js'))
+        expect(readFile(dir + '/vendor.css')).to.eql(readFile('tests/fixtures/input/reset.css'))
+        expect(readFile(dir + '/main.css')).to.eql(readFile('tests/fixtures/output/main.css'))
+      })
+    })
+  })
 });
