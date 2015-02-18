@@ -4,6 +4,7 @@ var helpers = require('broccoli-kitchen-sink-helpers')
 var Writer = require('broccoli-writer')
 var htmlparser = require("htmlparser2")
 var domSerializer = require("dom-serializer")
+var objectMerge = require("object-merge")
 
 module.exports = Pipeline
 
@@ -21,7 +22,7 @@ function Pipeline(inputTree, options) {
 
 Pipeline.prototype.write = function (readTree, destDir) {
   var self = this
-  return readTree(this.inputTree).then(function (srcDir) {
+  return readTree(self.inputTree).then(function (srcDir) {
     helpers.copyRecursivelySync(srcDir, destDir)
 
     function rewriteFile(filePath) {
@@ -40,19 +41,31 @@ Pipeline.prototype.write = function (readTree, destDir) {
   })
 }
 
-function rewriteString(s, rootDir) {
-  var replacements = []
+function BundleTagParser(htmlString, rootDir) {
+  this.html = htmlString
+  this.rootDir = rootDir
+  this.bundles = []
+}
+
+BundleTagParser.prototype.parse = function() {
+  var self = this
   var inBlock = false;
   var inScriptTag = false;
   var currentScriptTag;
   var leadingWhitespace = {};
+  var currentBundleTags = [];
   var parser = new htmlparser.Parser({
     oncomment: function(text) {
       if (text.match(/^\s*build:(js|css)\s*(.+)\s*$/)) {
         inBlock = true
+        currentBundleTags = []
       } else if (text.match(/^\s*endbuild\s*$/)) {
         inBlock = false
         inScriptTag = false
+        self.bundles.push({
+          bundleFileName: "TODO",
+          contents: currentBundleTags,
+        });
       }
     },
     onopentag: function(name, attributes) {
@@ -71,20 +84,13 @@ function rewriteString(s, rootDir) {
     },
     onclosetag: function(name) {
       if (inScriptTag && name === "script") {
-        var attributes = currentScriptTag.attrs
         inScriptTag = false
-        var files = helpers.multiGlob([attributes.src], {cwd: rootDir})
-        var newTags = files.map(function(file) {
-          attributes.src = file
-          var scriptDom = {
-            type: 'tag',
-            name: 'script',
-            attribs: attributes,
-            children: []
-          }
-          return domSerializer(scriptDom)
-        }).join(currentScriptTag.whitespace)
-        replacements.push({startIndex: currentScriptTag.startIndex, endIndex: parser.endIndex, str: newTags})
+        currentBundleTags.push({
+          startIndex: currentScriptTag.startIndex,
+          endIndex: parser.endIndex,
+          attributes: currentScriptTag.attrs,
+          leadingWhitespace: currentScriptTag.whitespace
+        })
       }
     },
     ontext: function(text) {
@@ -97,18 +103,55 @@ function rewriteString(s, rootDir) {
       }
     }
   })
-  parser.write(s);
+  parser.write(self.html);
   parser.end();
+}
+
+BundleTagParser.prototype.expandTags = function() {
+  var self = this
+  self.bundles.forEach(function(bundle) {
+    bundle.expandedContents = []
+    bundle.contents.forEach(function(tag) {
+      bundle.expandedContents.push(objectMerge(tag, {
+        files: helpers.multiGlob([tag.attributes.src], {cwd: self.rootDir})
+      }))
+    })
+  })
+}
+
+BundleTagParser.prototype.rewrittenHtml = function() {
+  var self = this
+
+  function bundleTagToHtml(bundleTag) {
+    return bundleTag.files.map(function(file) {
+      var scriptDom = {
+        type: 'tag',
+        name: 'script',
+        attribs: objectMerge(bundleTag.attributes, { src: file }),
+        children: []
+      }
+      return domSerializer(scriptDom)
+    }).join(bundleTag.leadingWhitespace)
+  }
 
   var lastIndex = 0
   var newHtmlChunks = []
-  replacements.forEach(function(replacement) {
-    newHtmlChunks.push(s.slice(lastIndex, replacement.startIndex))
-    newHtmlChunks.push(replacement.str)
-    lastIndex = replacement.endIndex + 1
+  self.bundles.forEach(function(bundle) {
+    bundle.expandedContents.forEach(function(tag) {
+      newHtmlChunks.push(self.html.slice(lastIndex, tag.startIndex))
+      newHtmlChunks.push(bundleTagToHtml(tag))
+      lastIndex = tag.endIndex + 1
+    })
   })
-  newHtmlChunks.push(s.slice(lastIndex))
+  newHtmlChunks.push(self.html.slice(lastIndex))
   return newHtmlChunks.join('')
+}
+
+function rewriteString(s, rootDir) {
+  var b = new BundleTagParser(s, rootDir)
+  b.parse()
+  b.expandTags()
+  return b.rewrittenHtml()
 }
 
 function getStat(path) {
