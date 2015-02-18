@@ -1,12 +1,7 @@
 var fs = require('fs')
 var path = require('path')
-var mkdirp = require('mkdirp')
 var helpers = require('broccoli-kitchen-sink-helpers')
 var Writer = require('broccoli-writer')
-var jsStringEscape = require('js-string-escape')
-var crypto = require('crypto')
-var quickTemp = require('quick-temp')
-var glob = require('glob')
 var htmlparser = require("htmlparser2")
 var domSerializer = require("dom-serializer")
 
@@ -22,35 +17,27 @@ function Pipeline(inputTree, options) {
       this[key] = options[key]
     }
   }
-
-  this.cache = {}
-  this.cachedConcatenatedOutputHash = null
-}
-
-Pipeline.prototype.cleanup = function(){
-  Writer.prototype.cleanup.call(this)
-  quickTemp.remove(this, 'tmpCacheDir')
 }
 
 Pipeline.prototype.write = function (readTree, destDir) {
   var self = this
-    return readTree(this.inputTree).then(function (srcDir) {
-      helpers.copyRecursivelySync(srcDir, destDir)
+  return readTree(this.inputTree).then(function (srcDir) {
+    helpers.copyRecursivelySync(srcDir, destDir)
 
-      function rewriteFile(filePath, stat) {
-        var fileContents = fs.readFileSync(srcDir + '/' + filePath, { encoding: 'utf8' })
-        var rewrittenFileContents = rewriteString(fileContents, srcDir)
-        fs.writeFileSync(path.join(destDir, filePath), rewrittenFileContents)
-      }
+    function rewriteFile(filePath) {
+      var fileContents = fs.readFileSync(srcDir + '/' + filePath, { encoding: 'utf8' })
+      var rewrittenFileContents = rewriteString(fileContents, srcDir)
+      fs.writeFileSync(path.join(destDir, filePath), rewrittenFileContents)
+    }
 
-      var inputHtml = helpers.multiGlob(self.htmlFiles, {cwd: srcDir})
-        for (i = 0; i < inputHtml.length; i++) {
-          var stat = getStat(srcDir + '/' + inputHtml[i]);
-          if (stat && stat.isFile()) {
-            rewriteFile(inputHtml[i], stat)
-          }
+    var inputHtml = helpers.multiGlob(self.htmlFiles, {cwd: srcDir})
+      for (var i = 0; i < inputHtml.length; i++) {
+        var stat = getStat(srcDir + '/' + inputHtml[i]);
+        if (stat && stat.isFile()) {
+          rewriteFile(inputHtml[i], stat)
         }
-    })
+      }
+  })
 }
 
 function rewriteString(s, rootDir) {
@@ -84,12 +71,12 @@ function rewriteString(s, rootDir) {
     },
     onclosetag: function(name) {
       if (inScriptTag && name === "script") {
-        attributes = currentScriptTag.attrs
+        var attributes = currentScriptTag.attrs
         inScriptTag = false
         var files = helpers.multiGlob([attributes.src], {cwd: rootDir})
         var newTags = files.map(function(file) {
           attributes.src = file
-          scriptDom = {
+          var scriptDom = {
             type: 'tag',
             name: 'script',
             attribs: attributes,
@@ -113,8 +100,8 @@ function rewriteString(s, rootDir) {
   parser.write(s);
   parser.end();
 
-  lastIndex = 0
-  newHtmlChunks = []
+  var lastIndex = 0
+  var newHtmlChunks = []
   replacements.forEach(function(replacement) {
     newHtmlChunks.push(s.slice(lastIndex, replacement.startIndex))
     newHtmlChunks.push(replacement.str)

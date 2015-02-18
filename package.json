@@ -33,5 +33,11 @@
     "concat",
     "concatenate",
     "pipeline"
-  ]
+  ],
+  "jshintConfig": {
+    "node": true,
+    "asi": true,
+    "unused": true,
+    "undef": true
+  }
 }
