@@ -10,12 +10,12 @@ var glob = require('glob')
 var htmlparser = require("htmlparser2")
 var domSerializer = require("dom-serializer")
 
-module.exports = Concat
+module.exports = Pipeline
 
-Concat.prototype = Object.create(Writer.prototype)
-Concat.prototype.constructor = Concat
-function Concat(inputTree, options) {
-  if (!(this instanceof Concat)) return new Concat(inputTree, options)
+Pipeline.prototype = Object.create(Writer.prototype)
+Pipeline.prototype.constructor = Pipeline
+function Pipeline(inputTree, options) {
+  if (!(this instanceof Pipeline)) return new Pipeline(inputTree, options)
   this.inputTree = inputTree
   for (var key in options) {
     if (options.hasOwnProperty(key)) {
@@ -27,12 +27,12 @@ function Concat(inputTree, options) {
   this.cachedConcatenatedOutputHash = null
 }
 
-Concat.prototype.cleanup = function(){
+Pipeline.prototype.cleanup = function(){
   Writer.prototype.cleanup.call(this)
   quickTemp.remove(this, 'tmpCacheDir')
 }
 
-Concat.prototype.write = function (readTree, destDir) {
+Pipeline.prototype.write = function (readTree, destDir) {
   var self = this
     return readTree(this.inputTree).then(function (srcDir) {
       helpers.copyRecursivelySync(srcDir, destDir)
