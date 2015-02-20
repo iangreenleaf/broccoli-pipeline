@@ -27,7 +27,11 @@ Pipeline.prototype.write = function (readTree, destDir) {
 
     function rewriteFile(filePath) {
       var fileContents = fs.readFileSync(srcDir + '/' + filePath, { encoding: 'utf8' })
-      var rewrittenFileContents = rewriteString(fileContents, srcDir)
+      var tagParser = new BundleTagParser(fileContents, srcDir)
+      tagParser.parse()
+      tagParser.expandTags()
+
+      var rewrittenFileContents = tagParser.rewrittenHtml({bundle: self.bundle})
       fs.writeFileSync(path.join(destDir, filePath), rewrittenFileContents)
     }
 
@@ -54,18 +58,23 @@ BundleTagParser.prototype.parse = function() {
   var currentScriptTag;
   var leadingWhitespace = {};
   var currentBundleTags = [];
+  var currentBundleAttrs;
   var parser = new htmlparser.Parser({
     oncomment: function(text) {
-      if (text.match(/^\s*build:(js|css)\s*(.+)\s*$/)) {
+      var matches = text.match(/^\s*build:(js|css)\s*(.+)\s*$/)
+      if (matches) {
         inBlock = true
         currentBundleTags = []
+        currentBundleAttrs = {
+          startIndex: parser.startIndex,
+          filename: matches[2],
+        }
       } else if (text.match(/^\s*endbuild\s*$/)) {
         inBlock = false
         inScriptTag = false
-        self.bundles.push({
-          bundleFileName: "TODO",
-          contents: currentBundleTags,
-        });
+        currentBundleAttrs.endIndex = parser.endIndex
+        currentBundleAttrs.contents = currentBundleTags
+        self.bundles.push(currentBundleAttrs)
       }
     },
     onopentag: function(name, attributes) {
@@ -119,39 +128,42 @@ BundleTagParser.prototype.expandTags = function() {
   })
 }
 
-BundleTagParser.prototype.rewrittenHtml = function() {
+BundleTagParser.prototype.rewrittenHtml = function(options) {
   var self = this
+  options = objectMerge({bundle: false}, options)
 
+  function makeScriptTag(attrs) {
+    var scriptDom = {
+      type: 'tag',
+      name: 'script',
+      attribs: attrs,
+      children: []
+    }
+    return domSerializer(scriptDom)
+  }
   function bundleTagToHtml(bundleTag) {
     return bundleTag.files.map(function(file) {
-      var scriptDom = {
-        type: 'tag',
-        name: 'script',
-        attribs: objectMerge(bundleTag.attributes, { src: file }),
-        children: []
-      }
-      return domSerializer(scriptDom)
+      return makeScriptTag(objectMerge(bundleTag.attributes, { src: file }))
     }).join(bundleTag.leadingWhitespace)
   }
 
   var lastIndex = 0
   var newHtmlChunks = []
   self.bundles.forEach(function(bundle) {
-    bundle.expandedContents.forEach(function(tag) {
-      newHtmlChunks.push(self.html.slice(lastIndex, tag.startIndex))
-      newHtmlChunks.push(bundleTagToHtml(tag))
-      lastIndex = tag.endIndex + 1
-    })
+    if (options.bundle) {
+      newHtmlChunks.push(self.html.slice(lastIndex, bundle.startIndex))
+      newHtmlChunks.push(makeScriptTag({src: bundle.filename}))
+      lastIndex = bundle.endIndex + 1
+    } else {
+      bundle.expandedContents.forEach(function(tag) {
+        newHtmlChunks.push(self.html.slice(lastIndex, tag.startIndex))
+        newHtmlChunks.push(bundleTagToHtml(tag))
+        lastIndex = tag.endIndex + 1
+      })
+    }
   })
   newHtmlChunks.push(self.html.slice(lastIndex))
   return newHtmlChunks.join('')
-}
-
-function rewriteString(s, rootDir) {
-  var b = new BundleTagParser(s, rootDir)
-  b.parse()
-  b.expandTags()
-  return b.rewrittenHtml()
 }
 
 function getStat(path) {
