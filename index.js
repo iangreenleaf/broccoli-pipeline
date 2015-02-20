@@ -54,50 +54,71 @@ function BundleTagParser(htmlString, rootDir) {
 BundleTagParser.prototype.parse = function() {
   var self = this
   var inBlock = false;
-  var inScriptTag = false;
+  var inTag = false;
   var currentScriptTag;
   var leadingWhitespace = {};
   var currentBundleTags = [];
   var currentBundleAttrs;
   var parser = new htmlparser.Parser({
     oncomment: function(text) {
-      var matches = text.match(/^\s*build:(js|css)\s*(.+)\s*$/)
+      var matches = text.match(/^\s*build:(js|css)\s*(.+[^\s])\s*$/)
       if (matches) {
         inBlock = true
         currentBundleTags = []
         currentBundleAttrs = {
           startIndex: parser.startIndex,
-          filename: matches[2],
+          attributes: {},
+        }
+        var filename = matches[2]
+        if (matches[1] == "js") {
+          currentBundleAttrs.tagName = "script"
+          currentBundleAttrs.attributes.src = filename
+        } else if (matches[1] == "css") {
+          currentBundleAttrs.tagName = "link"
+          currentBundleAttrs.attributes.rel = "stylesheet"
+          currentBundleAttrs.attributes.href = filename
         }
       } else if (text.match(/^\s*endbuild\s*$/)) {
         inBlock = false
-        inScriptTag = false
+        inTag = false
         currentBundleAttrs.endIndex = parser.endIndex
         currentBundleAttrs.contents = currentBundleTags
         self.bundles.push(currentBundleAttrs)
       }
     },
     onopentag: function(name, attributes) {
-      if (inBlock && name === "script" && attributes.src) {
-        inScriptTag = true
-        currentScriptTag = {
-          attrs: attributes,
-          startIndex: parser.startIndex,
-          whitespace: ''
+      if (inBlock) {
+        var filename
+        if (name === "script") {
+          filename = attributes.src
+        } else if (name === "link" && attributes.rel === "stylesheet") {
+          filename = attributes.href
         }
+        if (filename) {
+          inTag = true
+          currentScriptTag = {
+            attrs: attributes,
+            filename: filename,
+            startIndex: parser.startIndex,
+            name: name,
+            whitespace: ''
+          }
 
-        if (leadingWhitespace.endIndex === parser.startIndex - 1) {
-          currentScriptTag.whitespace = leadingWhitespace.str
+          if (leadingWhitespace.endIndex === parser.startIndex - 1) {
+            currentScriptTag.whitespace = leadingWhitespace.str
+          }
         }
       }
     },
     onclosetag: function(name) {
-      if (inScriptTag && name === "script") {
-        inScriptTag = false
+      if (inTag && name === currentScriptTag.name) {
+        inTag = false
         currentBundleTags.push({
           startIndex: currentScriptTag.startIndex,
           endIndex: parser.endIndex,
           attributes: currentScriptTag.attrs,
+          filename: currentScriptTag.filename,
+          tagName: currentScriptTag.name,
           leadingWhitespace: currentScriptTag.whitespace
         })
       }
@@ -122,7 +143,7 @@ BundleTagParser.prototype.expandTags = function() {
     bundle.expandedContents = []
     bundle.contents.forEach(function(tag) {
       bundle.expandedContents.push(objectMerge(tag, {
-        files: helpers.multiGlob([tag.attributes.src], {cwd: self.rootDir})
+        files: helpers.multiGlob([tag.filename], {cwd: self.rootDir})
       }))
     })
   })
@@ -132,18 +153,19 @@ BundleTagParser.prototype.rewrittenHtml = function(options) {
   var self = this
   options = objectMerge({bundle: false}, options)
 
-  function makeScriptTag(attrs) {
+  function makeTag(opts) {
     var scriptDom = {
       type: 'tag',
-      name: 'script',
-      attribs: attrs,
+      name: opts.tagName,
+      attribs: opts.attributes,
       children: []
     }
     return domSerializer(scriptDom)
   }
   function bundleTagToHtml(bundleTag) {
     return bundleTag.files.map(function(file) {
-      return makeScriptTag(objectMerge(bundleTag.attributes, { src: file }))
+      var fileAttr = (bundleTag.tagName === "script" ? { src: file } : { href: file })
+      return makeTag(objectMerge(bundleTag, { attributes: fileAttr }))
     }).join(bundleTag.leadingWhitespace)
   }
 
@@ -152,7 +174,7 @@ BundleTagParser.prototype.rewrittenHtml = function(options) {
   self.bundles.forEach(function(bundle) {
     if (options.bundle) {
       newHtmlChunks.push(self.html.slice(lastIndex, bundle.startIndex))
-      newHtmlChunks.push(makeScriptTag({src: bundle.filename}))
+      newHtmlChunks.push(makeTag(bundle))
       lastIndex = bundle.endIndex + 1
     } else {
       bundle.expandedContents.forEach(function(tag) {
