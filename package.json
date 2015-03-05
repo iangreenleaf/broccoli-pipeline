@@ -13,6 +13,7 @@
     "test": "mocha tests/"
   },
   "dependencies": {
+    "broccoli-concat": "0.0.12",
     "broccoli-kitchen-sink-helpers": "^0.2.4",
     "broccoli-writer": "^0.1.1",
     "dom-serializer": "0.0.1",

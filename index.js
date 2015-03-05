@@ -5,6 +5,7 @@ var Writer = require('broccoli-writer')
 var htmlparser = require("htmlparser2")
 var domSerializer = require("dom-serializer")
 var objectMerge = require("object-merge")
+var Concat = require("broccoli-concat")
 
 module.exports = Pipeline
 
@@ -25,21 +26,39 @@ Pipeline.prototype.write = function (readTree, destDir) {
   return readTree(self.inputTree).then(function (srcDir) {
     helpers.copyRecursivelySync(srcDir, destDir)
 
-    function rewriteFile(filePath) {
+    function processFile(filePath) {
       var fileContents = fs.readFileSync(srcDir + '/' + filePath, { encoding: 'utf8' })
       var tagParser = new BundleTagParser(fileContents, srcDir)
       tagParser.parse()
       tagParser.expandTags()
 
+      rewriteFile(filePath, tagParser)
+      writeAssets(tagParser)
+    }
+
+    function rewriteFile(filePath, tagParser) {
       var rewrittenFileContents = tagParser.rewrittenHtml({bundle: self.bundle})
       fs.writeFileSync(path.join(destDir, filePath), rewrittenFileContents)
+    }
+
+    function writeAssets(tagParser) {
+      tagParser.bundles.forEach(function(bundle) {
+        if (self.bundle) {
+          var c = new Concat(self.inputTree, {
+            inputFiles: [ bundle.files ],
+            outputFile: bundle.filename,
+          })
+          c.write(readTree, destDir)
+        } else {
+        }
+      })
     }
 
     var inputHtml = helpers.multiGlob(self.htmlFiles, {cwd: srcDir})
       for (var i = 0; i < inputHtml.length; i++) {
         var stat = getStat(srcDir + '/' + inputHtml[i]);
         if (stat && stat.isFile()) {
-          rewriteFile(inputHtml[i], stat)
+          processFile(inputHtml[i], stat)
         }
       }
   })
