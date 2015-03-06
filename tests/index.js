@@ -110,9 +110,9 @@ describe('broccoli-pipeline', function(){
       builder = new broccoli.Builder(tree);
       return builder.build().then(function(results) {
         var dir = results.directory;
-        expect(readFile(dir + '/vendor.js')).to.eql(readFile('tests/fixtures/output/vendor.js'))
-        expect(readFile(dir + '/vendor.css')).to.eql(readFile('tests/fixtures/input/reset.css'))
-        expect(readFile(dir + '/main.css')).to.eql(readFile('tests/fixtures/output/main.css'))
+        expect(readFile(dir + '/js/vendor.js')).to.eql(readFile('tests/fixtures/output/vendor.js'))
+        expect(readFile(dir + '/css/vendor.css')).to.eql(readFile('tests/fixtures/input/reset.css'))
+        expect(readFile(dir + '/css/main.css')).to.eql(readFile('tests/fixtures/output/main.css'))
       })
     })
   })
