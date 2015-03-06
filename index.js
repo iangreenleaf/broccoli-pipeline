@@ -83,12 +83,13 @@ BundleTagParser.prototype.parse = function() {
       var matches = text.match(/^\s*build:(js|css)\s*(.+[^\s])\s*$/)
       if (matches) {
         inBlock = true
+        var filename = matches[2]
         currentBundleTags = []
         currentBundleAttrs = {
+          filename: filename,
           startIndex: parser.startIndex,
           attributes: {},
         }
-        var filename = matches[2]
         if (matches[1] == "js") {
           currentBundleAttrs.tagName = "script"
           currentBundleAttrs.attributes.src = filename
@@ -160,9 +161,12 @@ BundleTagParser.prototype.expandTags = function() {
   var self = this
   self.bundles.forEach(function(bundle) {
     bundle.expandedContents = []
+    bundle.files = []
     bundle.contents.forEach(function(tag) {
+      var files = helpers.multiGlob([tag.filename], {cwd: self.rootDir})
+      bundle.files = bundle.files.concat(files)
       bundle.expandedContents.push(objectMerge(tag, {
-        files: helpers.multiGlob([tag.filename], {cwd: self.rootDir})
+        files: files
       }))
     })
   })
