@@ -6,8 +6,42 @@ var htmlparser = require("htmlparser2")
 var domSerializer = require("dom-serializer")
 var objectMerge = require("object-merge")
 var Concat = require("broccoli-concat")
+var mergeTrees = require('broccoli-merge-trees')
 
-module.exports = Pipeline
+module.exports = CallPipelineThenConcat
+
+var tagParser;
+
+function CallPipelineThenConcat(inputTree, opts) {
+  var florets = [];
+  var fullTree;
+  function writeAssets() {
+    tagParser.bundles.forEach(function(bundle) {
+      if (opts.bundle) {
+        var c = Concat(inputTree, {
+          inputFiles: bundle.files,
+          outputFile: bundle.filename,
+        })
+        florets.push(c)
+      } else {
+      }
+    })
+  }
+  return {
+    read: function(readTree) {
+      var pipe = Pipeline(inputTree, opts)
+        florets.push(pipe)
+        return pipe.read(readTree).then(function(p) {
+          writeAssets()
+          fullTree = mergeTrees(florets)
+          return fullTree.read(readTree)
+        })
+    },
+    cleanup: function() {
+      return fullTree.cleanup()
+    }
+  }
+}
 
 Pipeline.prototype = Object.create(Writer.prototype)
 Pipeline.prototype.constructor = Pipeline
@@ -28,30 +62,16 @@ Pipeline.prototype.write = function (readTree, destDir) {
 
     function processFile(filePath) {
       var fileContents = fs.readFileSync(srcDir + '/' + filePath, { encoding: 'utf8' })
-      var tagParser = new BundleTagParser(fileContents, srcDir)
+      tagParser = new BundleTagParser(fileContents, srcDir)
       tagParser.parse()
       tagParser.expandTags()
 
       rewriteFile(filePath, tagParser)
-      writeAssets(tagParser)
     }
 
     function rewriteFile(filePath, tagParser) {
       var rewrittenFileContents = tagParser.rewrittenHtml({bundle: self.bundle})
       fs.writeFileSync(path.join(destDir, filePath), rewrittenFileContents)
-    }
-
-    function writeAssets(tagParser) {
-      tagParser.bundles.forEach(function(bundle) {
-        if (self.bundle) {
-          var c = new Concat(self.inputTree, {
-            inputFiles: [ bundle.files ],
-            outputFile: bundle.filename,
-          })
-          c.write(readTree, destDir)
-        } else {
-        }
-      })
     }
 
     var inputHtml = helpers.multiGlob(self.htmlFiles, {cwd: srcDir})

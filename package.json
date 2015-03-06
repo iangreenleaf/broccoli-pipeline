@@ -15,6 +15,7 @@
   "dependencies": {
     "broccoli-concat": "0.0.12",
     "broccoli-kitchen-sink-helpers": "^0.2.4",
+    "broccoli-merge-trees": "^0.2.1",
     "broccoli-writer": "^0.1.1",
     "dom-serializer": "0.0.1",
     "glob": "^4.3.1",
